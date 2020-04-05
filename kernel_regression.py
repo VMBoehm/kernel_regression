@@ -86,20 +86,20 @@ class KernelRegression(BaseEstimator, RegressorMixin):
         """
         X = np.transpose(X)
         K = pairwise_kernels(self.X, X, metric=self.kernel, gamma=self.gamma)
-        # mod: changed axis = 0 to axis=(0,1), corrected normalization
-        return (K * self.y[:, None]).sum(axis=(0,1)) / K.sum(axis=0)/len(self.y)
+        # mod: introduced einsum, changed axis = 0 to axis=(0,1), corrected normalization
+        Ky = np.einsum('ji,nj->nji',K,self.y, optimize=True)
+        return (Ky).sum(axis=(0,1)) / K.sum(axis=0)[np.newaxis,:]/len(self.y)
 
     def _optimize_gamma(self, gamma_values):
         # Select specific value of gamma from the range of given gamma_values
         # by minimizing mean-squared error in leave-one-out cross validation
         mse = np.empty_like(gamma_values, dtype=np.float)
         for i, gamma in enumerate(gamma_values):
-            K = pairwise_kernels(self.X, self.X, metric=self.kernel,
-                                 gamma=gamma)
+            K = pairwise_kernels(self.X, self.X, metric=self.kernel,gamma=gamma)
             np.fill_diagonal(K, 0)  # leave-one-out
-            Ky = K * self.y[:, np.newaxis]
-            # mod: changed axos=0 to axis = 1, corrected normalization
-            y_pred = Ky.sum(axis=1) / K.sum(axis=0)/len(self.y)
+            # mod: introduced einsum, changed axis = 0 to axis=(0,1), corrected normalization
+            Ky = np.einsum('ji,nj->nji',K,self.y)
+            y_pred = Ky.sum(axis=(0,1)) / K.sum(axis=0)[np.newaxis,:]/len(self.y)
             mse[i] = ((y_pred - self.y) ** 2).mean()
 
         return gamma_values[np.nanargmin(mse)]
