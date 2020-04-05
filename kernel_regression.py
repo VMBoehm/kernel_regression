@@ -3,6 +3,9 @@
 # Author: Jan Hendrik Metzen <janmetzen@mailbox.de>
 #
 # License: BSD 3 clause
+#
+# modifications by Vanessa Boehm <vboehm@berkeley.edu>
+# all modification all marked
 
 import numpy as np
 
@@ -48,10 +51,11 @@ class KernelRegression(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : array-like of shape = [n_samples, n_features]
+        X : array-like of shape = [1, n_features]
             The training input samples.
 
-        y : array-like, shape = [n_samples]
+        mod: allow to have n_samples at the same X values
+        y : array-like, shape = [n_samples, n_features]
             The target values
 
         Returns
@@ -59,7 +63,7 @@ class KernelRegression(BaseEstimator, RegressorMixin):
         self : object
             Returns self.
         """
-        self.X = X
+        self.X = np.transpose(X)
         self.y = y
 
         if hasattr(self.gamma, "__iter__"):
@@ -72,7 +76,7 @@ class KernelRegression(BaseEstimator, RegressorMixin):
 
         Parameters
         ----------
-        X : array-like of shape = [n_samples, n_features]
+        X : array-like of shape = [n_features,1]
             The input samples.
 
         Returns
@@ -80,8 +84,10 @@ class KernelRegression(BaseEstimator, RegressorMixin):
         y : array of shape = [n_samples]
             The predicted target value.
         """
+        X = np.transpose(X)
         K = pairwise_kernels(self.X, X, metric=self.kernel, gamma=self.gamma)
-        return (K * self.y[:, None]).sum(axis=0) / K.sum(axis=0)
+        # mod: changed axis = 0 to axis=(0,1), corrected normalization
+        return (K * self.y[:, None]).sum(axis=(0,1)) / K.sum(axis=0)/len(self.y)
 
     def _optimize_gamma(self, gamma_values):
         # Select specific value of gamma from the range of given gamma_values
@@ -92,7 +98,8 @@ class KernelRegression(BaseEstimator, RegressorMixin):
                                  gamma=gamma)
             np.fill_diagonal(K, 0)  # leave-one-out
             Ky = K * self.y[:, np.newaxis]
-            y_pred = Ky.sum(axis=0) / K.sum(axis=0)
+            # mod: changed axos=0 to axis = 1, corrected normalization
+            y_pred = Ky.sum(axis=1) / K.sum(axis=0)/len(self.y)
             mse[i] = ((y_pred - self.y) ** 2).mean()
 
         return gamma_values[np.nanargmin(mse)]
